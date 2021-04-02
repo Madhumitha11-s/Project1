@@ -1,0 +1,27 @@
+stressScore
+0 : No
+1 : Low
+2 : Moderate
+3 : High
+4 : Physical Activity
+5 : No HR (Has to be left blank in the graph)
+
+recoveryLabel
+0 : Low
+1 : Moderate
+2 : High
+3 : No HR
+
+sleepQuality ----> Implies Sleep Scores
+0 : Wake
+1 : Light
+2 : Deep 
+3 : REM
+4: No HR
+
+activityLevel
+0 : Low
+1 : Moderate
+2 : Intense
+3 : Sleep 
+4: No HR
