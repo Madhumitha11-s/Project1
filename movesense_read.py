@@ -6,6 +6,7 @@ import statistics as st
 import numpy as np
 from scipy import interpolate
 from tqdm import tqdm
+import pandas as pd
 
 from collections import Counter
 
@@ -16,7 +17,11 @@ from hrv_analysis_mod.preprocessing import remove_outliers, remove_ectopic_beats
 print("Reading movesense_read")
 class Movesense:
 
-    def __init__(self, data, fs, isjson=True):
+    def __init__(self, data, list_of_name,date, fs, isjson=True):
+
+        self.list_of_name = list_of_name
+
+        self.date = date
 
         self.fs = fs
         self.data = data
@@ -35,7 +40,14 @@ class Movesense:
             print('Please provide path to a json file')
 
         self.windowed_hr = np.array([])
+        self.hf = np.array([])
+        self.lf = np.array([])
         self.hf_lf = np.array([])
+        self.hfnu = np.array([])
+        self.lfnu =np.array([])
+        self.psd = np.array([])
+
+
         self.hr = np.array([])
         self.interpolate_fs = 4
         self.process_window = 5  ###(5 minute window)
@@ -52,6 +64,7 @@ class Movesense:
         self.RMSSD = np.array([])
 
     def recompute_ticks_rr(self, rr_in_ms):
+
         ### Will only factor for no HR if no HR is received for over 20 seconds ###
         no_hr_indices = np.where(rr_in_ms > 20000)
         indice_shift = 0
@@ -65,6 +78,7 @@ class Movesense:
         return rr_in_ms
 
     def json_reader(self):
+
 
         #
         # with open(self.data, 'r') as infile:
@@ -103,6 +117,7 @@ class Movesense:
         return np.asarray(rr_in_ms)
 
     def obtain_hrv_features(self):
+
         rr_int = self.rr
         rr_times = _create_time_info(list(rr_int))
 
@@ -128,7 +143,18 @@ class Movesense:
         nn_interpolation = nni_interpolation
 
         all_hf_lf = []
-        RMSSD = np.array([])  # Initiating array for storing RMSSD values for each window
+        all_hf = []
+        all_lf = []
+        all_hfnu = []
+        all_lfnu = []
+        all_psd = []
+
+
+        RMSSD = np.array([])
+
+
+        SDNN = np.array([])  # Initiating array for storing RMSSD values for each window
+
         total_windows = int(timestamps_interpolation[-1] * self.interpolate_fs - self.window_size) // int(
             self.stride_samples) + 1
 
@@ -150,8 +176,17 @@ class Movesense:
 
             if not(sum(windowed_nn_intervals != 1000)): ### Accounting for erroneous RR-Intervals
                 RMSSD = np.append(RMSSD, math.nan)
+                SDNN = np.append(SDNN, math.nan)
+
+
                 self.windowed_hr = np.append(self.windowed_hr, 0)
                 all_hf_lf.append(None)
+                all_hfnu.append(None)
+                all_lfnu.append(None)
+                all_hf.append(None)
+                all_lf.append(None)
+                all_psd.append(None)
+
                 self.erroneous_count += 1
                 self.windowed_nn_intervals = np.append(self.windowed_nn_intervals, 0)
                 self.win_RR = np.append(self.win_RR, 0)
@@ -160,11 +195,37 @@ class Movesense:
 
                 freq_domain_features = get_frequency_domain_features(windowed_nn_intervals)
                 time_domain_features = get_time_domain_features(windowed_nn_intervals)
+
+
+
                 RMSSD = np.append(RMSSD, time_domain_features['rmssd'])
+                SDNN = np.append(SDNN, time_domain_features['sdnn'])
+
+
+                # sdnn = np.append(sdnn, time_domain_features['sdnn'])
+                # sdsd = np.append(sdsd, time_domain_features['sdsd'])
+                HF = freq_domain_features['hf']
+                LF = freq_domain_features['lf']
                 HF_LF = freq_domain_features['hf'] / freq_domain_features['lf']
+                HFnu = freq_domain_features['hf'] / (freq_domain_features['lf'] + freq_domain_features['hf'])
+                LFnu = freq_domain_features['lf'] / (freq_domain_features['lf'] + freq_domain_features['hf'])
+                # PSD = freq_domain_features['psd']
+
+
                 if np.isnan(HF_LF):
                     HF_LF = None
+                    HFnu = None
+                    LFnu = None
+                    HF = None
+                    LF = None
+                    # PSD = None
+
                 all_hf_lf.append(HF_LF)
+                all_hf.append(HF)
+                all_lf.append(LF)
+                all_hfnu.append(HFnu)
+                all_lfnu.append(LFnu)
+                # all_psd.append(PSD)
 
                 if HF_LF != None:
                     self.windowed_hr = np.append(self.windowed_hr, np.mean(60 * 1000 / windowed_nn_intervals))
@@ -176,10 +237,50 @@ class Movesense:
                     self.windowed_nn_intervals = np.append(self.windowed_nn_intervals, 0)
                     self.win_RR = np.append(self.win_RR, 0)
 
+
+        #
+        # import csv
+        # field_names = ['mean_nni', 'sdnn', 'sdsd', 'nni_50', 'pnni_50', 'nni_20', 'pnni_20', 'rmssd', 'median_nni', 'range_nni', 'cvsd', 'cvnni', 'mean_hr', 'max_hr', 'min_hr', "std_hr"]
+        #
+        # with open('time_domain_features.csv', 'a') as csvfile:
+        #     writer = csv.DictWriter(csvfile, fieldnames = field_names)
+        #     writer.writerows(time_domain_features)
+
         self.hf_lf = all_hf_lf
+        self.hf = all_hf
+        self.lf = all_lf
+        self.hfnu = all_hfnu
+        self.lfnu = all_lfnu
+        # self.psd = all_psd
+
+
         self.RMSSD = RMSSD
+        self.SDNN = SDNN
+
+        # self.sdsd = sdsd
+
+        # hf_lf_data = {'hf_lf': self.hf_lf,'hf': self.hf, 'lf': self.lf}
+        #
+        #
+        #
+        # hf_lf_data = pd.DataFrame(hf_lf_data, columns=['hf_lf','hf','lf'])
+        # hf_lf_data.to_csv (r'C:\Users\madhu\Documents\NLSAP_Stress\data\hf_lf_data.csv', index = False, header=True)
+
+        # pd.DataFrame(self.hf_lf).T.to_csv('hf_lf.csv')
+        # pd.DataFrame(self.hf).T.to_csv('hf.csv')
+        # pd.DataFrame(self.lf).T.to_csv('lf.csv')
+        # pd.DataFrame(self.psd).T.to_csv('psd.csv')
+        #
+        # pd.DataFrame(self.RMSSD).T.to_csv('RMSSD.csv')
+        # pd.DataFrame(self.SDNN).T.to_csv('SDNN.csv')
+
+
+
+
 
     def get_stress_region(self):
+
+
 
         """ This function returns the threshold ranges for no, low, medium and high stress derived from HF/LF ratio
             The logic implementation is drived from percentile idea
@@ -194,9 +295,11 @@ class Movesense:
 
         stress_score1 = np.asarray(self.hf_lf)
 
-        stress_score1[(self.step_count>10) * (self.activity_intensity != 0) * (stress_score1 != None)] = -10
 
+        stress_score1[(self.step_count>10) * (self.activity_intensity != 0) * (stress_score1 != None)] = -10
         stress_score1[stress_score1 == None] = -100
+        stress_score1.tofile('stress_score1.csv', sep = ',')
+
 
         norm_stress_score1 = stress_score1/np.max(stress_score1)
         no_rr_val = 1 - (-100 / np.max(stress_score1))
@@ -231,6 +334,8 @@ class Movesense:
         norm_mental_stress_score = (norm_mental_stress_score1 + norm_mental_stress_score2)/2
 
         norm_mental_stress_score_sorted2 = np.sort(norm_mental_stress_score)
+
+
         mental_stress_bound2 = np.mean(norm_mental_stress_score_sorted2)
 
         ### Defining thresholds for stress ranges
@@ -261,6 +366,26 @@ class Movesense:
         self.stress_levels = self.stress_regions
 
         threshold_bounds = np.array([0, no_stress_high_bound, low_stress_high_bound, medium_stress_high_bound, 1])
+        as_list = threshold_bounds.tolist()
+
+
+
+
+
+
+
+
+
+        # name_threshold_bounds = np.array([])
+        # name_threshold_bounds = np.array([self.list_of_name[1], self.date, 0, no_stress_high_bound, low_stress_high_bound, medium_stress_high_bound, 1])
+        # #pd.DataFrame(threshold_bounds).T.to_csv('threshold_bounds.csv')
+        # import csv
+        #
+        # with open(r'C:\Users\madhu\Documents\NLSAP_Stress\data\threshold_bounds', 'a') as f:
+        #     writer = csv.writer(f)
+        #     writer.writerow(name_threshold_bounds)
+
+
 
         return threshold_bounds
 
@@ -299,6 +424,7 @@ class Movesense:
 
         for i in range(0, len(self.stress_levels), slide_by_samples):
             windowed_stress_levels = self.stress_levels[i:i+slide_by_samples]
+            print(window_stress_level,"imhere")
             windowed_stress_levels[np.where(windowed_stress_levels == 4)] = 0
             windowed_stress_levels[np.where(windowed_stress_levels == 5)] = 4
 
@@ -313,6 +439,8 @@ class Movesense:
 
             mode_stress_levels = np.full(shape = len(windowed_stress_levels), fill_value = window_stress_level, dtype = np.int)
             defined_stress_levels = np.append(defined_stress_levels, mode_stress_levels)
+
+
 
         self.stress_regions = defined_stress_levels
         self.stress_regions[np.array(motion_indices)] = 5

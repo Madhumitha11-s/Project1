@@ -10,7 +10,7 @@ import nolds
 import numpy as np
 from astropy.stats import LombScargle
 from scipy import signal
-
+import pandas as pd
 # limit functions that user might import using "from hrv-analysis import *"
 __all__ = ['get_time_domain_features', 'get_frequency_domain_features',
            'get_geometrical_features', 'get_poincare_plot_features',
@@ -96,16 +96,20 @@ def get_time_domain_features(nn_intervals: List[float]) -> dict:
     """
 
     diff_nni = np.diff(nn_intervals)
+
+
     length_int = len(nn_intervals)
 
 
     # Basic statistics
     mean_nni = np.mean(nn_intervals)
+
     median_nni = np.median(nn_intervals)
     range_nni = max(nn_intervals) - min(nn_intervals)
 
     sdsd = np.std(diff_nni)
     rmssd = np.sqrt(np.mean(diff_nni ** 2))
+
 
     nni_50 = sum(np.abs(diff_nni) > 50)
     pnni_50 = 100 * nni_50 / length_int
@@ -144,6 +148,9 @@ def get_time_domain_features(nn_intervals: List[float]) -> dict:
         "min_hr": min_hr,
         "std_hr": std_hr,
     }
+
+
+
 
     return time_domain_features
 
@@ -293,9 +300,18 @@ def _get_freq_psd_from_nn_intervals(nn_intervals: List[float], method: str = WEL
                                                                maximum_frequency=hf_band[1])
     else:
         raise ValueError("Not a valid method. Choose between 'lomb' and 'welch'")
+    #
+    # print("i'm here")
+    # plot(freq, psd)
+    #
+    #
+    # for i in range(len(psd)):
+    #     print(psd[i], end =" ")
+    #
+    # print("the end")
+
 
     return freq, psd
-
 
 def _create_time_info(nn_intervals: List[float]) -> List[float]:
     """
@@ -368,6 +384,7 @@ def _get_features_from_psd(freq: List[float], psd: List[float], vlf_band: namedt
     """
 
     # Calcul of indices between desired frequency bands
+
     vlf_indexes = np.logical_and(freq >= vlf_band[0], freq < vlf_band[1])
     lf_indexes = np.logical_and(freq >= lf_band[0], freq < lf_band[1])
     hf_indexes = np.logical_and(freq >= hf_band[0], freq < hf_band[1])
@@ -376,6 +393,8 @@ def _get_features_from_psd(freq: List[float], psd: List[float], vlf_band: namedt
 
     # Integrate using the composite trapezoidal rule
     lf = np.trapz(y=psd[lf_indexes], x=freq[lf_indexes])
+
+
     hf = np.trapz(y=psd[hf_indexes], x=freq[hf_indexes])
 
     # total power & vlf : Feature often used for  "long term recordings" analysis
